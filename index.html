@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NS홈쇼핑 수거 관리 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f4f7fa;
+  --surface: #ffffff;
+  --surface2: #f0f3f7;
+  --surface3: #e5eaf1;
+  --border: rgba(0,0,0,0.07);
+  --bh: rgba(220,30,60,0.35);
+  --ns: #dc1e3c;
+  --nsl: #c01832;
+  --nsd: rgba(220,30,60,0.10);
+  --acc: #e85d20;
+  --blue: #2979e8;
+  --text: #1a1a1e;
+  --muted: #6c757d;
+  --ok: #1a9e5c;
+  --warn: #d08700;
+  --err: #dc2626;
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.07), 0 0px 1px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-lg: 0 8px 28px rgba(0,0,0,0.11), 0 2px 6px rgba(0,0,0,0.06);
+  --font: 'Noto Sans KR', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+body { background: var(--bg); color: var(--text); font-family: var(--font); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+/* NAV */
+.nav { display:flex; align-items:center; height:52px; padding:0 20px; background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0; z-index:200; box-shadow: var(--shadow-sm); }
+.brand { display:flex; align-items:center; gap:9px; margin-right:28px; }
+.badge { background:var(--ns); color:#fff; font-weight:900; font-size:13px; padding:3px 8px; border-radius:4px; letter-spacing:.05em; }
+.brand-sub { font-size:12px; color:var(--muted); }
+.tabs { display:flex; gap:2px; }
+.tab { background:none; border:none; color:var(--muted); font-family:var(--font); font-size:13px; padding:5px 13px; border-radius:6px; cursor:pointer; transition:.15s; }
+.tab:hover { background:var(--surface2); color:var(--text); }
+.tab.on { background:var(--nsd); color:var(--ns); font-weight:700; border:1px solid rgba(220,30,60,0.18); }
+.nav-r { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.live { display:flex; align-items:center; gap:5px; background:rgba(26,158,92,.08); border:1px solid rgba(26,158,92,.25); border-radius:20px; padding:3px 10px; font-size:11px; color:var(--ok); font-family:var(--mono); }
+.dot { width:6px; height:6px; background:var(--ok); border-radius:50%; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.clk { font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+/* FILTERS */
+.filters { display:flex; align-items:center; gap:14px; padding:8px 20px; background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; box-shadow: var(--shadow-sm); }
+.fl { font-size:11px; color:var(--muted); font-family:var(--mono); letter-spacing:.05em; white-space:nowrap; font-weight:500; }
+.fbtns { display:flex; gap:3px; }
+.fb { background:var(--surface2); border:1px solid var(--border); color:var(--muted); font-family:var(--font); font-size:11px; padding:4px 10px; border-radius:4px; cursor:pointer; transition:.15s; white-space:nowrap; }
+.fb:hover { border-color:var(--bh); color:var(--text); background:var(--surface3); }
+.fb.on { background:var(--nsd); border-color:rgba(220,30,60,0.35); color:var(--ns); font-weight:700; }
+.fdiv { width:1px; height:18px; background:var(--border); }
+
+/* PAGES */
+.page { display:none; flex:1; overflow:hidden; }
+.page.on { display:flex; flex-direction:column; }
+
+/* ── MAP PAGE ── */
+#pmap { position:relative; }
+.kpi-ov { position:absolute; top:12px; left:12px; right:292px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px; z-index:60; pointer-events:none; }
+.kc { background:rgba(255,255,255,0.92); backdrop-filter:blur(14px); border:1px solid var(--border); border-radius:9px; padding:11px 14px; position:relative; overflow:hidden; pointer-events:auto; box-shadow: var(--shadow-md); }
+.kc::before { content:''; position:absolute; top:0;left:0;right:0;height:3px; border-radius:9px 9px 0 0; }
+.kc.r::before{background:var(--ns)} .kc.a::before{background:var(--acc)} .kc.e::before{background:var(--err)} .kc.g::before{background:var(--ok)}
+.kl { font-size:9px; color:var(--muted); font-family:var(--mono); letter-spacing:.06em; text-transform:uppercase; margin-bottom:5px; }
+.kv { font-size:22px; font-weight:900; letter-spacing:-.03em; line-height:1; margin-bottom:3px; }
+.kc.r .kv{color:var(--ns)} .kc.a .kv{color:var(--acc)} .kc.e .kv{color:var(--err)} .kc.g .kv{color:var(--ok)}
+.kd { font-size:10px; font-family:var(--mono); }
+.kd.up{color:var(--err)} .kd.dn{color:var(--ok)}
+
+/* Map Container */
+.map-area { flex:1; position:relative; overflow:hidden; background:#dce8f0; }
+#echarts-map { width:100%; height:100%; }
+
+/* Map Back Button */
+.map-back { display:none; align-items:center; gap:6px; position:absolute; top:12px; left:12px; z-index:70; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid rgba(220,30,60,0.35); color:var(--ns); font-family:var(--font); font-size:12px; font-weight:700; padding:7px 14px; border-radius:7px; cursor:pointer; transition:.2s; box-shadow: var(--shadow-sm); }
+.map-back:hover { background:var(--nsd); border-color:var(--ns); }
+
+/* Sidebar */
+.sidebar { width:280px; flex-shrink:0; background:rgba(255,255,255,0.97); backdrop-filter:blur(14px); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; z-index:60; box-shadow: -4px 0 16px rgba(0,0,0,0.05); }
+.sb { padding:12px 14px; border-bottom:1px solid var(--border); }
+.sbt { font-size:10px; font-weight:700; color:var(--muted); letter-spacing:.07em; text-transform:uppercase; font-family:var(--mono); margin-bottom:9px; }
+.ul { display:flex; flex-direction:column; gap:4px; }
+.ui { display:flex; align-items:center; gap:7px; padding:6px 8px; background:var(--surface2); border-radius:5px; border:1px solid var(--border); cursor:pointer; transition:.12s; }
+.ui:hover { background:var(--surface3); box-shadow: var(--shadow-sm); }
+.ui-rk { font-family:var(--mono); font-size:10px; color:var(--muted); width:14px; }
+.ui-inf { flex:1; }
+.ui-nm { font-size:12px; font-weight:700; color:var(--text); }
+.uc { font-family:var(--mono); font-size:12px; font-weight:500; }
+.uc.h{color:var(--err)}
+.sc { font-size:9px; padding:2px 5px; border-radius:3px; font-family:var(--mono); display:block; margin-top:2px; font-weight:600; }
+.sc.em{background:rgba(220,38,38,.10);color:var(--err);border:1px solid rgba(220,38,38,0.18)}
+.sc.wn{background:rgba(208,135,0,.10);color:var(--warn);border:1px solid rgba(208,135,0,0.18)}
+.sc.ok{background:rgba(26,158,92,.10);color:var(--ok);border:1px solid rgba(26,158,92,0.18)}
+.cl { display:flex; flex-direction:column; gap:7px; }
+.cr { display:flex; align-items:center; gap:7px; }
+.cn { font-size:11px; font-weight:700; width:66px; color:var(--text); }
+.cbw { flex:1; height:5px; background:var(--surface3); border-radius:3px; overflow:hidden; }
+.cb { height:100%; border-radius:3px; transition:width .6s; }
+.cv { font-family:var(--mono); font-size:11px; color:var(--muted); width:28px; text-align:right; }
+
+/* ── INSIGHTS PAGE ── */
+#pins { padding:18px 20px; overflow-y:auto; gap:12px; }
+.kbi { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+.kf { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:13px 16px; position:relative; box-shadow: var(--shadow-sm); }
+.kf::before { content:''; position:absolute; top:0;left:0;right:0;height:3px; border-radius:9px 9px 0 0; }
+.kf.r::before{background:var(--ns)}
+.kf .kl { font-size:9px; color:var(--muted); font-family:var(--mono); letter-spacing:.06em; text-transform:uppercase; margin-bottom:5px; }
+.kf .kv { font-size:22px; font-weight:900; letter-spacing:-.03em; line-height:1; color:var(--text); }
+.ig { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+.cc { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:14px 16px; box-shadow: var(--shadow-sm); }
+.ct { font-size:13px; font-weight:700; margin-bottom:2px; color:var(--text); }
+.cs { font-size:11px; color:var(--muted); margin-bottom:12px; }
+table.dt { width:100%; border-collapse:collapse; font-size:12px; }
+table.dt th { text-align:left; padding:5px 7px; font-family:var(--mono); font-size:10px; color:var(--muted); border-bottom:1px solid var(--border); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+table.dt td { padding:7px 7px; border-bottom:1px solid var(--border); color:var(--text); }
+table.dt tr:last-child td { border-bottom:none; }
+.ii { display:flex; flex-direction:column; gap:7px; }
+.is { display:flex; align-items:flex-start; gap:9px; padding:9px 11px; background:var(--surface2); border-radius:6px; border-left:3px solid; }
+.is.cr2{border-color:var(--err); background:rgba(220,38,38,0.04);}
+.is.wn2{border-color:var(--warn); background:rgba(208,135,0,0.04);}
+.is.info2{border-color:var(--blue); background:rgba(41,121,232,0.04);}
+.it { font-size:12px; font-weight:700; color:var(--text); }
+.id { font-size:11px; color:var(--muted); }
+.im { font-size:10px; font-family:var(--mono); color:#adb5bd; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="brand">
+    <span class="badge">NS</span>
+    <span class="brand-sub">수거 관리 대시보드</span>
+  </div>
+  <div class="tabs">
+    <button class="tab on" onclick="sw('pmap',this)">🗺 전국 수거 현황</button>
+    <button class="tab" onclick="sw('pins',this)">📊 실적 분석</button>
+  </div>
+  <div class="nav-r">
+    <div class="live"><div class="dot"></div>LIVE</div>
+    <div class="clk" id="clk">--:--:--</div>
+  </div>
+</nav>
+
+<div class="filters">
+  <div class="fl">리드타임(지시 후 경과)</div>
+  <div class="fbtns" id="fs">
+    <button class="fb on" data-leadtime="전체" onclick="sf(this,'fs')">전체</button>
+    <button class="fb" data-leadtime="3일이상" onclick="sf(this,'fs')">3일 이상</button>
+    <button class="fb" data-leadtime="5일이상" onclick="sf(this,'fs')">5일 이상</button>
+  </div>
+  <div class="fdiv"></div>
+  <div class="fl">택배사</div>
+  <div class="fbtns" id="fc">
+    <button class="fb on" data-courier="전체" onclick="cf(this)">전체</button>
+    <button class="fb" data-courier="CJ대한통운" onclick="cf(this)">CJ대한통운</button>
+    <button class="fb" data-courier="롯데택배" onclick="cf(this)">롯데택배</button>
+    <button class="fb" data-courier="한진택배" onclick="cf(this)">한진택배</button>
+  </div>
+</div>
+
+<div class="page on" id="pmap">
+  <div class="kpi-ov">
+    <div class="kc r"><div class="kl">전국 평균 리드타임</div><div class="kv" id="kpi-lead">2.9<span style="font-size:12px">일</span></div><div class="kd up">▲ 0.3일</div></div>
+    <div class="kc a"><div class="kl">미수거 총 건수</div><div class="kv" id="kpi-total">29,016</div><div class="kd up">▲ 1,243건</div></div>
+    <div class="kc e"><div class="kl">긴급 (3일↑)</div><div class="kv" id="kpi-urgent">4,909</div><div class="kd up">▲ 412건</div></div>
+    <div class="kc g"><div class="kl">오늘 수거 완료</div><div class="kv">9,124</div><div class="kd dn">▲ 638건</div></div>
+  </div>
+
+  <div style="display:flex;flex:1;overflow:hidden;position:relative">
+    <div class="map-area">
+      <div id="echarts-map"></div>
+      <button class="map-back" id="map-back" onclick="exitDrilldown()">← 전국 보기</button>
+    </div>
+    <div class="sidebar">
+      <div class="sb"><div class="sbt">⚠ 긴급 지역 TOP 5</div><div class="ul" id="ul"></div></div>
+      <div class="sb"><div class="sbt">택배사별 리드타임</div><div class="cl" id="cl"></div></div>
+      <div class="sb" style="flex:1"><div class="sbt">권역별 수거율</div><div style="height:150px"><canvas id="dc"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="pins">
+  <div class="kbi">
+    <div class="kf r"><div class="kl">이번달 총 수거</div><div class="kv">284,310</div></div>
+    <div class="kf b" style="border-top:3px solid var(--blue)"><div class="kl">평균 수거 완료율</div><div class="kv">94.2%</div></div>
+    <div class="kf a" style="border-top:3px solid var(--acc)"><div class="kl">지연 발생 건수</div><div class="kv">16,490</div></div>
+    <div class="kf g" style="border-top:3px solid var(--ok)"><div class="kl">SLA 준수율</div><div class="kv">88.7%</div></div>
+  </div>
+  <div class="ig">
+    <div class="cc"><div class="ct">택배사별 평균 리드타임</div><div style="height:190px"><canvas id="lbc"></canvas></div></div>
+    <div class="cc"><div class="ct">물동량 대비 지연율</div><div class="cs">택배사별 물동량과 지연율 상관관계</div><div style="height:190px"><canvas id="scc"></canvas></div></div>
+  </div>
+  <div class="ig">
+    <div class="cc"><div class="ct">수거 대기 TOP 10</div><table class="dt" id="tt"></table></div>
+    <div class="cc"><div class="ct">지역별 리드타임 추이</div><div class="cs">최근 6개월 주요 지역 리드타임 변화</div><div style="height:210px"><canvas id="tlc"></canvas></div></div>
+  </div>
+  <div class="cc" style="margin-bottom:18px"><div class="ct">실시간 이슈 현황</div><div class="cs">최근 발생한 수거 관련 이슈</div><div class="ii" id="il"></div></div>
+</div>
+
+<script>
+// ── CLOCK & TABS ──
+setInterval(()=>{document.getElementById('clk').textContent=new Date().toLocaleTimeString('ko-KR')},1000);
+function sw(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  btn.classList.add('on');
+  if(id==='pins')initIns();
+}
+
+// ── FILTER STATE ──
+let currentLeadtime='전체', currentCourier='전체';
+
+function sf(btn,gid){
+  document.getElementById(gid).querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  currentLeadtime=btn.dataset.leadtime;
+  applyFilters();
+}
+
+function cf(btn){
+  document.getElementById('fc').querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  currentCourier=btn.dataset.courier;
+  applyFilters();
+}
+
+// ── FILTER LOGIC: value = 수거 지시 후 경과 리드타임(일) ──
+function getFilteredData(){
+  let d=[...RD];
+  if(currentCourier!=='전체') d=d.filter(r=>r.couriers.includes(currentCourier));
+  if(currentLeadtime==='3일이상') d=d.filter(r=>r.value>=3);
+  else if(currentLeadtime==='5일이상') d=d.filter(r=>r.value>=5);
+  return d;
+}
+
+function applyFilters(){
+  if(isDrilldown) exitDrilldown();
+  const f=getFilteredData();
+  setMapOption(f);
+  buildUL(f);
+  updateKPI(f);
+}
+
+function updateKPI(data){
+  const tot=data.reduce((s,d)=>s+d.total,0);
+  const urg=data.reduce((s,d)=>s+d.urgent,0);
+  const avg=data.length?(data.reduce((s,d)=>s+d.value,0)/data.length).toFixed(1):'0.0';
+  document.getElementById('kpi-lead').innerHTML=avg+'<span style="font-size:12px">일</span>';
+  document.getElementById('kpi-total').textContent=tot.toLocaleString();
+  document.getElementById('kpi-urgent').textContent=urg.toLocaleString();
+}
+
+// ── DATA (전국 17개 시도) ──
+const RD=[
+  {name:'서울특별시',value:1.8,total:4821,urgent:312,superUrgent:45,couriers:['CJ대한통운','롯데택배'],courierLabel:'CJ/롯데'},
+  {name:'부산광역시',value:2.5,total:2180,urgent:198,superUrgent:22,couriers:['CJ대한통운','한진택배'],courierLabel:'CJ/한진'},
+  {name:'대구광역시',value:2.8,total:1520,urgent:245,superUrgent:31,couriers:['CJ대한통운'],courierLabel:'CJ대한통운'},
+  {name:'인천광역시',value:2.2,total:2940,urgent:278,superUrgent:38,couriers:['CJ대한통운','롯데택배'],courierLabel:'CJ/롯데'},
+  {name:'광주광역시',value:2.9,total:1120,urgent:189,superUrgent:28,couriers:['롯데택배'],courierLabel:'롯데택배'},
+  {name:'대전광역시',value:2.4,total:1380,urgent:156,superUrgent:18,couriers:['한진택배'],courierLabel:'한진택배'},
+  {name:'울산광역시',value:2.6,total:890,urgent:134,superUrgent:15,couriers:['CJ대한통운'],courierLabel:'CJ대한통운'},
+  {name:'세종특별자치시',value:1.9,total:320,urgent:42,superUrgent:5,couriers:['CJ대한통운'],courierLabel:'CJ대한통운'},
+  {name:'경기도',value:2.1,total:6340,urgent:891,superUrgent:120,couriers:['CJ대한통운','롯데택배','한진택배'],courierLabel:'CJ/롯데/한진'},
+  {name:'강원도',value:3.8,total:982,urgent:412,superUrgent:87,couriers:['한진택배'],courierLabel:'한진택배'},
+  {name:'충청북도',value:3.1,total:780,urgent:234,superUrgent:42,couriers:['CJ대한통운','한진택배'],courierLabel:'CJ/한진'},
+  {name:'충청남도',value:2.7,total:1050,urgent:198,superUrgent:25,couriers:['롯데택배'],courierLabel:'롯데택배'},
+  {name:'전라북도',value:3.4,total:870,urgent:312,superUrgent:58,couriers:['CJ대한통운'],courierLabel:'CJ대한통운'},
+  {name:'전라남도',value:3.6,total:920,urgent:356,superUrgent:72,couriers:['롯데택배','한진택배'],courierLabel:'롯데/한진'},
+  {name:'경상북도',value:3.2,total:1021,urgent:398,superUrgent:65,couriers:['CJ대한통운','한진택배'],courierLabel:'CJ/한진'},
+  {name:'경상남도',value:2.9,total:1450,urgent:267,superUrgent:35,couriers:['CJ대한통운','롯데택배'],courierLabel:'CJ/롯데'},
+  {name:'제주특별자치도',value:4.9,total:432,urgent:287,superUrgent:142,couriers:['한진택배'],courierLabel:'한진택배'}
+];
+
+// ── 경기도 시별 데이터 ──
+const GYEONGGI=[
+  {name:'수원시',lat:37.26,lng:127.03,total:820,urgent:112,value:2.3},
+  {name:'성남시',lat:37.42,lng:127.13,total:690,urgent:89,value:1.9},
+  {name:'고양시',lat:37.66,lng:126.83,total:580,urgent:95,value:2.5},
+  {name:'용인시',lat:37.24,lng:127.18,total:720,urgent:105,value:2.1},
+  {name:'부천시',lat:37.50,lng:126.76,total:410,urgent:62,value:2.0},
+  {name:'안산시',lat:37.32,lng:126.83,total:380,urgent:78,value:2.8},
+  {name:'안양시',lat:37.39,lng:126.95,total:350,urgent:55,value:1.8},
+  {name:'남양주시',lat:37.64,lng:127.21,total:420,urgent:88,value:3.1},
+  {name:'화성시',lat:37.20,lng:126.83,total:510,urgent:92,value:2.7},
+  {name:'평택시',lat:36.99,lng:127.09,total:390,urgent:71,value:3.2},
+  {name:'의정부시',lat:37.74,lng:127.03,total:280,urgent:45,value:2.4},
+  {name:'시흥시',lat:37.38,lng:126.80,total:310,urgent:58,value:2.6},
+  {name:'파주시',lat:37.76,lng:126.78,total:260,urgent:52,value:3.4},
+  {name:'김포시',lat:37.62,lng:126.72,total:220,urgent:38,value:2.9}
+];
+
+// ── ECHARTS MAP ──
+let mapChart, isDrilldown=false;
+
+function getBaseOption(data){
+  return {
+    backgroundColor:'transparent',
+    tooltip:{
+      trigger:'item',
+      backgroundColor:'rgba(255,255,255,0.97)',
+      borderColor:'rgba(0,0,0,0.10)',
+      borderWidth:1,
+      textStyle:{color:'#1a1a1e',fontSize:12},
+      extraCssText:'box-shadow:0 4px 16px rgba(0,0,0,0.12);border-radius:8px;',
+      formatter:function(p){
+        if(p.seriesType==='effectScatter'){
+          var d=p.data;
+          return '<div style="padding:6px 4px"><b style="font-size:13px">'+d.name+'</b><br/><span style="color:#6c757d">미수거</span> <b>'+d.total+'건</b><br/><span style="color:#6c757d">긴급</span> <b style="color:#dc2626">'+d.urgent+'건</b><br/><span style="color:#6c757d">리드타임</span> <b style="color:#dc1e3c">'+d.leadTime+'일</b></div>';
+        }
+        var d=RD.find(function(x){return x.name===p.name})||{value:0,total:0,urgent:0,superUrgent:0,courierLabel:'-'};
+        return '<div style="padding:6px 4px"><b style="font-size:13px">'+p.name+'</b><br/><span style="color:#6c757d">평균 리드타임</span> <b style="color:#dc1e3c">'+d.value+'일</b><br/><span style="color:#6c757d">미수거</span> <b>'+d.total+'건</b><br/><span style="color:#6c757d">긴급</span> <b style="color:#dc2626">'+d.urgent+'건</b><br/><span style="color:#6c757d">초긴급</span> <b>'+d.superUrgent+'건</b><br/><span style="color:#6c757d">택배사</span> '+d.courierLabel+'</div>';
+      }
+    },
+    visualMap:{
+      min:1.5, max:5.0, left:20, bottom:20,
+      text:['지연','정상'],
+      inRange:{color:['#bfd9f2','#5ba4e0','#f0b429','#ef4444','#7f1d1d']},
+      textStyle:{color:'#6c757d'},
+      itemWidth:14,
+      itemHeight:80
+    },
+    series:[{
+      id:'main', name:'전국 수거 현황', type:'map', map:'korea', roam:true,
+      label:{show:true, color:'#1a1a1e', fontSize:10, fontWeight:'bold'},
+      itemStyle:{areaColor:'#e8f0f8', borderColor:'rgba(0,0,0,0.15)', borderWidth:0.8},
+      emphasis:{itemStyle:{areaColor:'#dc1e3c'}, label:{show:true, color:'#fff'}},
+      data:data
+    }]
+  };
+}
+
+function setMapOption(data){
+  mapChart.clear();
+  mapChart.setOption(getBaseOption(data));
+  mapChart.off('click');
+  mapChart.on('click',function(p){
+    if(p.seriesType==='map'&&p.name==='경기도') enterGyeonggiDrilldown();
+  });
+}
+
+async function initMap(){
+  mapChart=echarts.init(document.getElementById('echarts-map'));
+  var res=await fetch('https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_provinces_geo.json');
+  var geo=await res.json();
+  echarts.registerMap('korea',geo);
+  setMapOption(RD);
+}
+
+function enterGyeonggiDrilldown(){
+  isDrilldown=true;
+  document.getElementById('map-back').style.display='flex';
+
+  var cityData=GYEONGGI.map(function(c){
+    return {name:c.name, value:[c.lng,c.lat,c.total], total:c.total, urgent:c.urgent, leadTime:c.value};
+  });
+
+  mapChart.clear();
+  mapChart.setOption({
+    backgroundColor:'transparent',
+    tooltip:{
+      trigger:'item',
+      backgroundColor:'rgba(255,255,255,0.97)',
+      borderColor:'rgba(0,0,0,0.10)',
+      borderWidth:1,
+      textStyle:{color:'#1a1a1e',fontSize:12},
+      extraCssText:'box-shadow:0 4px 16px rgba(0,0,0,0.12);border-radius:8px;',
+      formatter:function(p){
+        if(p.componentType==='series'){
+          var d=p.data;
+          return '<div style="padding:6px 4px"><b style="font-size:13px">'+d.name+'</b><br/><span style="color:#6c757d">미수거</span> <b>'+d.total+'건</b><br/><span style="color:#6c757d">긴급</span> <b style="color:#dc2626">'+d.urgent+'건</b><br/><span style="color:#6c757d">리드타임</span> <b style="color:#dc1e3c">'+d.leadTime+'일</b></div>';
+        }
+        return '';
+      }
+    },
+    geo:{
+      map:'korea', roam:true, center:[127.0,37.45], zoom:6,
+      itemStyle:{areaColor:'#e8f0f8', borderColor:'rgba(0,0,0,0.15)', borderWidth:0.8},
+      emphasis:{itemStyle:{areaColor:'#d0e2f0'}},
+      label:{show:true, color:'rgba(26,26,30,0.4)', fontSize:9},
+      regions:[{name:'경기도', itemStyle:{areaColor:'rgba(220,30,60,0.10)', borderColor:'rgba(220,30,60,0.5)'}, label:{show:true, color:'#dc1e3c', fontSize:11, fontWeight:'bold'}}]
+    },
+    series:[{
+      type:'effectScatter', coordinateSystem:'geo', data:cityData,
+      symbolSize:function(val){return Math.max(12,val[2]/35)},
+      showEffectOn:'render',
+      rippleEffect:{brushType:'stroke', scale:3, period:4},
+      encode:{value:2},
+      itemStyle:{color:'#dc1e3c', shadowBlur:10, shadowColor:'rgba(220,30,60,0.4)'},
+      label:{show:true, formatter:'{b}', position:'right', color:'#1a1a1e', fontSize:10, fontWeight:'bold',
+        textShadowColor:'rgba(255,255,255,0.8)', textShadowBlur:4}
+    }]
+  });
+
+  // 사이드바를 경기도 시별 현황으로 업데이트
+  var sorted=GYEONGGI.slice().sort(function(a,b){return b.urgent-a.urgent}).slice(0,5);
+  document.getElementById('ul').innerHTML=sorted.map(function(d,i){
+    var status=d.value>=5?'초긴급':d.value>=3?'긴급':'정상';
+    var cls=d.value>=5?'em':d.value>=3?'wn':'ok';
+    return '<div class="ui"><span class="ui-rk">#'+(i+1)+'</span>'+
+      '<div class="ui-inf"><div class="ui-nm">'+d.name+'</div><div style="font-size:10px;color:var(--muted)">경기도</div></div>'+
+      '<div style="text-align:right"><div class="uc h">'+d.urgent+'건</div>'+
+      '<span class="sc '+cls+'">'+status+'</span></div></div>';
+  }).join('');
+}
+
+function exitDrilldown(){
+  isDrilldown=false;
+  document.getElementById('map-back').style.display='none';
+  var f=getFilteredData();
+  setMapOption(f);
+  buildUL(f);
+}
+
+// ── SIDEBAR & CHARTS ──
+function buildUL(data){
+  if(!data) data=RD;
+  var sorted=data.slice().sort(function(a,b){return b.urgent-a.urgent}).slice(0,5);
+  document.getElementById('ul').innerHTML=sorted.map(function(d,i){
+    var status=d.value>=5?'초긴급':d.value>=3?'긴급':'정상';
+    var cls=d.value>=5?'em':d.value>=3?'wn':'ok';
+    return '<div class="ui"><span class="ui-rk">#'+(i+1)+'</span>'+
+      '<div class="ui-inf"><div class="ui-nm">'+d.name+'</div><div style="font-size:10px;color:var(--muted)">'+d.courierLabel+'</div></div>'+
+      '<div style="text-align:right"><div class="uc h">'+d.urgent+'건</div>'+
+      '<span class="sc '+cls+'">'+status+'</span></div></div>';
+  }).join('');
+}
+
+function buildCL(){
+  [['CJ대한통운',2.1,'#2979e8'],['롯데택배',2.7,'#d08700'],['한진택배',3.4,'#dc2626']].forEach(function(item){
+    var n=item[0],v=item[1],c=item[2];
+    var row=document.createElement('div'); row.className='cr';
+    row.innerHTML='<span class="cn">'+n+'</span><div class="cbw"><div class="cb" style="width:'+(v/5*100)+'%;background:'+c+'"></div></div><span class="cv">'+v+'일</span>';
+    document.getElementById('cl').appendChild(row);
+  });
+}
+
+function buildDonut(){
+  new Chart(document.getElementById('dc').getContext('2d'),{
+    type:'doughnut',
+    data:{
+      labels:['수도권','영남권','호남권','충청권','기타'],
+      datasets:[{
+        data:[45,28,14,9,4],
+        backgroundColor:['#2979e8','#d08700','#1a9e5c','#9b7fe8','#dc2626'],
+        borderWidth:2,
+        borderColor:'#ffffff'
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{
+          display:true,
+          position:'bottom',
+          labels:{color:'#6c757d', font:{size:9}, boxWidth:10, padding:6}
+        }
+      },
+      cutout:'68%'
+    }
+  });
+}
+
+// ── INSIGHTS PAGE ──
+var insI=false;
+function initIns(){
+  if(insI) return; insI=true;
+
+  // 공통 차트 스타일 (라이트 테마)
+  var gridColor='rgba(0,0,0,0.06)';
+  var tickColor='#6c757d';
+  var textColor='#1a1a1e';
+
+  // 택배사별 평균 리드타임 (Bar Chart)
+  new Chart(document.getElementById('lbc').getContext('2d'),{
+    type:'bar',
+    data:{
+      labels:['CJ대한통운','롯데택배','한진택배','우체국','로젠택배','경동택배'],
+      datasets:[{
+        label:'평균 리드타임(일)',
+        data:[2.1,2.7,3.4,2.9,3.1,3.6],
+        backgroundColor:['#2979e8','#d08700','#dc2626','#1a9e5c','#9b7fe8','#e85d20'],
+        borderRadius:4,
+        borderSkipped:false
+      }]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:gridColor}, ticks:{color:tickColor}, border:{color:gridColor}},
+        y:{grid:{display:false}, ticks:{color:textColor, font:{weight:'600'}}, border:{color:gridColor}}
+      }
+    }
+  });
+
+  // 물동량 대비 지연율 (Scatter Chart)
+  new Chart(document.getElementById('scc').getContext('2d'),{
+    type:'scatter',
+    data:{datasets:[
+      {label:'CJ대한통운',
+        data:[{x:38400,y:4.2},{x:32100,y:3.8},{x:28500,y:5.1},{x:41200,y:3.5},{x:35800,y:4.8},{x:30200,y:4.0},{x:26800,y:5.5}],
+        backgroundColor:'#2979e8', pointRadius:6},
+      {label:'롯데택배',
+        data:[{x:29100,y:9.8},{x:24300,y:8.2},{x:31200,y:7.5},{x:27800,y:10.2},{x:22100,y:6.9},{x:25600,y:8.8},{x:20400,y:7.1}],
+        backgroundColor:'#d08700', pointRadius:6},
+      {label:'한진택배',
+        data:[{x:18700,y:14.2},{x:21400,y:12.8},{x:16900,y:15.1},{x:23200,y:11.5},{x:19800,y:13.6},{x:15200,y:16.2},{x:22800,y:12.1}],
+        backgroundColor:'#dc2626', pointRadius:6}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:textColor, usePointStyle:true, pointStyle:'circle', padding:12}}},
+      scales:{
+        x:{title:{display:true,text:'물동량(건)',color:tickColor}, grid:{color:gridColor}, ticks:{color:tickColor}, border:{color:gridColor}},
+        y:{title:{display:true,text:'지연율(%)',color:tickColor}, grid:{color:gridColor}, ticks:{color:tickColor}, border:{color:gridColor}}
+      }
+    }
+  });
+
+  // 수거 대기 TOP 10 (Table)
+  var td=[
+    ['경기도 수원시','CJ대한통운',820,'긴급'],
+    ['강원도 원주시','한진택배',540,'초긴급'],
+    ['경상북도 포항시','CJ/한진',480,'긴급'],
+    ['전라남도 여수시','롯데택배',430,'긴급'],
+    ['제주특별자치도','한진택배',432,'초긴급'],
+    ['서울특별시 강남구','CJ대한통운',410,'정상'],
+    ['경기도 화성시','롯데택배',390,'긴급'],
+    ['전라북도 전주시','CJ대한통운',370,'긴급'],
+    ['충청북도 청주시','한진택배',350,'긴급'],
+    ['경상남도 창원시','CJ/롯데',340,'정상']
+  ];
+  document.getElementById('tt').innerHTML='<thead><tr><th>지역</th><th>택배사</th><th>대기(건)</th><th>상태</th></tr></thead><tbody>'+
+    td.map(function(r){
+      var cls=r[3]==='초긴급'?'em':r[3]==='긴급'?'wn':'ok';
+      return '<tr><td><b>'+r[0]+'</b></td><td>'+r[1]+'</td><td>'+r[2].toLocaleString()+'</td><td><span class="sc '+cls+'">'+r[3]+'</span></td></tr>';
+    }).join('')+'</tbody>';
+
+  // 지역별 리드타임 추이 (Line Chart)
+  new Chart(document.getElementById('tlc').getContext('2d'),{
+    type:'line',
+    data:{
+      labels:['10월','11월','12월','1월','2월','3월'],
+      datasets:[
+        {label:'서울',data:[1.6,1.7,1.9,2.0,1.8,1.8],borderColor:'#2979e8',tension:0.3,fill:false,pointRadius:3,borderWidth:2,pointBackgroundColor:'#2979e8'},
+        {label:'경기',data:[1.8,1.9,2.2,2.4,2.1,2.1],borderColor:'#d08700',tension:0.3,fill:false,pointRadius:3,borderWidth:2,pointBackgroundColor:'#d08700'},
+        {label:'강원',data:[3.2,3.4,3.6,3.9,3.8,3.8],borderColor:'#dc2626',tension:0.3,fill:false,pointRadius:3,borderWidth:2,pointBackgroundColor:'#dc2626'},
+        {label:'부산',data:[2.2,2.3,2.5,2.6,2.5,2.5],borderColor:'#1a9e5c',tension:0.3,fill:false,pointRadius:3,borderWidth:2,pointBackgroundColor:'#1a9e5c'},
+        {label:'제주',data:[4.1,4.3,4.5,4.8,4.9,4.9],borderColor:'#9b7fe8',tension:0.3,fill:false,pointRadius:3,borderWidth:2,pointBackgroundColor:'#9b7fe8'}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:textColor, usePointStyle:true, pointStyle:'circle', padding:10, font:{size:11}}}},
+      scales:{
+        x:{grid:{color:gridColor}, ticks:{color:tickColor}, border:{color:gridColor}},
+        y:{title:{display:true,text:'리드타임(일)',color:tickColor}, grid:{color:gridColor}, ticks:{color:tickColor}, border:{color:gridColor}}
+      }
+    }
+  });
+
+  // 실시간 이슈 현황
+  var issues=[
+    {sev:'cr2',icon:'🚨',t:'제주도 한진택배 수거 5일 초과',d:'제주특별자치도 전체 배송 지연 — 기상 악화로 인한 항공편 결항',m:'2분 전'},
+    {sev:'cr2',icon:'⚠️',t:'강원도 원주 집하장 적체',d:'원주 집하장 처리 용량 초과 — 당일 수거 불가 발생',m:'8분 전'},
+    {sev:'cr2',icon:'🔴',t:'경기도 화성시 수거 지연 급증',d:'화성시 동탄 지역 물량 급증으로 수거 차량 부족',m:'15분 전'},
+    {sev:'wn2',icon:'🟡',t:'롯데택배 충청남도 리드타임 상승',d:'충청남도 서산/태안 지역 리드타임 2.7일→3.4일 상승',m:'23분 전'},
+    {sev:'wn2',icon:'🟡',t:'CJ대한통운 전라북도 수거율 하락',d:'전주시/익산시 지역 수거 완료율 89.2%→82.1% 하락',m:'31분 전'},
+    {sev:'info2',icon:'ℹ️',t:'서울 강남 물량 증가 예상',d:'내일 프로모션 예정 — 강남/서초 지역 물량 30% 증가 예상',m:'45분 전'}
+  ];
+  document.getElementById('il').innerHTML=issues.map(function(i){
+    return '<div class="is '+i.sev+'">'+
+      '<span style="font-size:16px">'+i.icon+'</span>'+
+      '<div style="flex:1"><div class="it">'+i.t+'</div><div class="id">'+i.d+'</div><div class="im">'+i.m+'</div></div></div>';
+  }).join('');
+}
+
+// ── INITIALIZE ──
+initMap(); buildUL(); buildCL(); buildDonut();
+</script>
+</body>
+</html>
