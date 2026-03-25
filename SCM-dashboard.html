@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS SCM 통합 리스크 관제 시스템 Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg:       #07070a;
+            --surface:  #0f0f14;
+            --surface2: #161620;
+            --surface3: #1e1e2c;
+            --surface4: #252535;
+            --border:   rgba(255,255,255,0.06);
+            --border2:  rgba(255,255,255,0.11);
+            --ns:       #dc1e3c;
+            --nsl:      #ff3355;
+            --nsd:      rgba(220,30,60,0.13);
+            --blue:     #3a8fff;
+            --bluel:    #60aeff;
+            --text:     #dde0f0;
+            --text2:    #a0a8c0;
+            --muted:    #5a6278;
+            --ok:       #00e58a;
+            --warn:     #ffb020;
+            --err:      #ff3030;
+            --font:     'Noto Sans KR', sans-serif;
+            --mono:     'JetBrains Mono', monospace;
+            --display:  'Bebas Neue', cursive;
+        }
+        html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:var(--font); }
+        body { display:flex; flex-direction:column; }
+
+        /* SCANLINES */
+        body::before {
+            content:''; position:fixed; inset:0;
+            background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+            pointer-events:none; z-index:9000;
+        }
+
+        /* ═══ NAV ═══ */
+        .nav {
+            display:flex; align-items:center; justify-content:space-between;
+            height:52px; padding:0 18px;
+            background:var(--surface); border-bottom:1px solid var(--border);
+            flex-shrink:0; z-index:300; position:relative;
+        }
+        .nav::after {
+            content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px;
+            background:linear-gradient(90deg,transparent 0%,var(--ns) 40%,var(--ns) 60%,transparent 100%);
+            opacity:0.4;
+        }
+        .brand { display:flex; align-items:center; gap:10px; }
+        .brand-logo {
+            background:var(--ns); color:#fff;
+            font-family:var(--display); font-size:18px; letter-spacing:0.08em;
+            padding:3px 10px 1px; border-radius:3px;
+            box-shadow:0 0 16px rgba(220,30,60,0.55),0 0 48px rgba(220,30,60,0.12);
+        }
+        .brand-text { display:flex; flex-direction:column; line-height:1; }
+        .brand-name { font-size:12px; font-weight:700; letter-spacing:0.13em; }
+        .brand-sub  { font-size:9px; color:var(--muted); font-family:var(--mono); letter-spacing:0.1em; margin-top:3px; }
+        .tabs { display:flex; gap:2px; position:absolute; left:50%; transform:translateX(-50%); }
+        .tab {
+            background:none; border:none; color:var(--muted);
+            font-family:var(--font); font-size:12px; font-weight:500;
+            padding:6px 16px; border-radius:5px; cursor:pointer; transition:all 0.18s;
+        }
+        .tab:hover { color:var(--text); background:var(--surface2); }
+        .tab.on { background:var(--nsd); color:var(--nsl); font-weight:700; box-shadow:0 0 14px rgba(220,30,60,0.15); }
+        .nav-r { display:flex; gap:16px; align-items:center; }
+        .sys-badge { font-family:var(--mono); font-size:9px; color:var(--muted); border:1px solid var(--border2); padding:3px 8px; border-radius:3px; letter-spacing:0.1em; }
+        .clock-wrap { display:flex; align-items:center; gap:7px; }
+        .clock-dot { width:6px; height:6px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px var(--ok); animation:blink 2s ease-in-out infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+        .clock-val { font-family:var(--mono); font-size:13px; color:var(--nsl); font-weight:500; }
+
+        /* ═══ FILTERS ═══ */
+        .filters {
+            display:flex; align-items:center; gap:14px; padding:7px 18px;
+            background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0;
+        }
+        .fl { font-size:9px; color:var(--muted); font-family:var(--mono); letter-spacing:0.1em; white-space:nowrap; }
+        .fbtns { display:flex; gap:3px; }
+        .fb {
+            background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+            font-family:var(--font); font-size:11px; font-weight:500;
+            padding:4px 10px; border-radius:4px; cursor:pointer; transition:all 0.18s;
+        }
+        .fb:hover { color:var(--text); border-color:var(--border2); }
+        .fb.on { background:var(--nsd); border-color:rgba(220,30,60,0.4); color:var(--nsl); font-weight:700; }
+        .fb.alert-btn.on { animation:alertPulse 1.6s ease-in-out infinite; }
+        @keyframes alertPulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,30,60,0)} 50%{box-shadow:0 0 14px 3px rgba(220,30,60,0.38)} }
+        /* Carrier-color view mode buttons */
+        .fb[data-co="CJ"].on   { border-color:rgba(58,143,255,0.5);  color:#60aeff; background:rgba(58,143,255,0.1); }
+        .fb[data-co="HJ"].on   { border-color:rgba(255,176,32,0.5);  color:#ffb020; background:rgba(255,176,32,0.1); }
+        .fb[data-co="LD"].on   { border-color:rgba(255,85,85,0.5);   color:#ff7070; background:rgba(255,85,85,0.1); }
+        .div-v { width:1px; height:18px; background:var(--border); flex-shrink:0; }
+        .scenario-pill { font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.1em; padding:3px 9px; border-radius:3px; transition:all 0.3s; }
+
+        /* ═══ PAGE SHELL ═══ */
+        .page { display:none; flex:1; overflow:hidden; min-height:0; }
+        .page.on { display:flex; flex-direction:column; }
+
+        /* ═══ MAP PAGE ═══ */
+        .map-container { display:flex; flex:1; overflow:hidden; min-height:0; position:relative; }
+        .map-area { flex:1; background:#030810; position:relative; overflow:hidden; }
+        #echarts-main { position:absolute; inset:0; width:100%; height:100%; }
+
+        /* KPI OVERLAY */
+        .kpi-ov {
+            position:absolute; top:14px; left:14px; right:314px;
+            display:grid; grid-template-columns:repeat(4,1fr); gap:8px;
+            z-index:60; pointer-events:none;
+        }
+        .kc {
+            background:rgba(5,5,9,0.90); backdrop-filter:blur(22px);
+            border:1px solid var(--border2); border-radius:8px; padding:11px 14px;
+            pointer-events:auto; position:relative; overflow:hidden;
+            transition:transform 0.25s, box-shadow 0.25s;
+        }
+        .kc::before {
+            content:''; position:absolute; inset:0;
+            background:linear-gradient(140deg,rgba(255,255,255,0.035),transparent 60%);
+            pointer-events:none;
+        }
+        .kc:hover { transform:translateY(-2px); box-shadow:0 10px 28px rgba(0,0,0,0.45); }
+        .kl { font-size:9px; color:var(--muted); font-family:var(--mono); letter-spacing:0.07em; margin-bottom:6px; text-transform:uppercase; }
+        .kv { font-size:20px; font-weight:900; line-height:1; letter-spacing:-0.02em; }
+        .kv small { font-size:11px; font-weight:400; opacity:0.65; margin-left:2px; }
+        .kc-glow { position:absolute; inset:0; border-radius:8px; pointer-events:none; }
+
+        /* ALERT OVERLAY */
+        #map-alert-overlay { position:absolute; inset:0; pointer-events:none; z-index:50; display:none; }
+        #map-alert-overlay.show { display:block; }
+        .alert-banner { position:absolute; top:0; left:0; right:0; height:90px; background:linear-gradient(to bottom,rgba(200,20,40,0.22),transparent); }
+        .alert-corner {
+            position:absolute; top:10px; right:10px;
+            background:rgba(220,30,60,0.88); color:#fff;
+            font-family:var(--mono); font-size:10px; font-weight:700;
+            padding:4px 11px; border-radius:3px; letter-spacing:0.1em;
+            animation:alertBlink 1s ease-in-out infinite;
+        }
+        @keyframes alertBlink { 0%,100%{opacity:1} 50%{opacity:0.45} }
+
+        /* HUB MODAL */
+        #hub-modal {
+            position:absolute; bottom:20px; left:20px; width:284px;
+            background:rgba(5,5,9,0.96); backdrop-filter:blur(28px);
+            border:1px solid rgba(255,255,255,0.1); border-radius:10px;
+            padding:0; z-index:200; display:none;
+            box-shadow:0 24px 64px rgba(0,0,0,0.75),0 0 0 1px rgba(255,255,255,0.04);
+            animation:modalIn 0.28s cubic-bezier(0.175,0.885,0.32,1.275);
+            overflow:hidden;
+        }
+        @keyframes modalIn { from{opacity:0;transform:scale(0.93) translateY(12px)} to{opacity:1;transform:scale(1) translateY(0)} }
+        .modal-hd { padding:13px 16px 11px; background:linear-gradient(135deg,#151520,#1c1c2a); border-bottom:1px solid var(--border); position:relative; }
+        .modal-hd-bar { position:absolute; top:0; left:0; right:0; height:2px; }
+        .modal-close { position:absolute; top:10px; right:12px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:18px; line-height:1; padding:2px 5px; transition:color 0.15s; }
+        .modal-close:hover { color:var(--text); }
+        .modal-co { font-size:9px; font-family:var(--mono); letter-spacing:0.1em; margin-bottom:4px; font-weight:600; }
+        .modal-name { font-size:17px; font-weight:900; letter-spacing:-0.01em; }
+        .modal-bd { padding:13px 16px; }
+        .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+        .modal-metric { background:var(--surface2); border-radius:6px; padding:9px 11px; }
+        .modal-metric-label { font-size:8px; color:var(--muted); font-family:var(--mono); letter-spacing:0.07em; margin-bottom:5px; text-transform:uppercase; }
+        .modal-metric-val { font-size:15px; font-weight:800; }
+        .modal-status { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--surface2); border-radius:6px; margin-bottom:10px; }
+        .st-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+        .st-dot.ok   { background:var(--ok);   box-shadow:0 0 8px var(--ok); }
+        .st-dot.warn { background:var(--warn);  box-shadow:0 0 8px var(--warn); }
+        .st-dot.err  { background:var(--err);   box-shadow:0 0 8px var(--err); }
+        .modal-spark { height:52px; }
+
+        /* ═══ SIDEBAR ═══ */
+        .sidebar {
+            width:300px; flex-shrink:0;
+            background:rgba(5,5,9,0.96); backdrop-filter:blur(22px);
+            border-left:1px solid var(--border);
+            display:flex; flex-direction:column;
+            overflow-y:auto; overflow-x:hidden; z-index:60;
+            scrollbar-width:thin; scrollbar-color:var(--surface3) transparent;
+        }
+        .sidebar::-webkit-scrollbar { width:4px; }
+        .sidebar::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+        .sb { padding:14px 16px; border-bottom:1px solid var(--border); }
+        .sbt {
+            font-size:9px; font-weight:700; color:var(--muted); letter-spacing:0.1em;
+            margin-bottom:12px; text-transform:uppercase; font-family:var(--mono);
+            display:flex; align-items:center; gap:7px;
+        }
+        .sbt::before { content:''; width:2px; height:10px; background:var(--ns); border-radius:1px; box-shadow:0 0 7px var(--ns); flex-shrink:0; }
+
+        /* HUB LIST */
+        .hub-item { margin-bottom:9px; cursor:pointer; padding:8px 10px; border-radius:6px; border:1px solid transparent; transition:all 0.18s; }
+        .hub-item:hover  { background:var(--surface2); border-color:var(--border); }
+        .hub-item.active { background:var(--nsd); border-color:rgba(220,30,60,0.32); }
+        .hub-item-top { display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:5px; }
+        .hub-item-name { font-weight:600; }
+        .hub-item-val  { font-family:var(--mono); font-size:11px; }
+        .hub-meta { font-size:9px; color:var(--muted); font-family:var(--mono); margin-bottom:5px; }
+        .hub-bar-track { height:3px; background:var(--surface3); border-radius:2px; overflow:hidden; }
+        .hub-bar-fill  { height:100%; border-radius:2px; transition:width 0.55s ease; }
+
+        /* BUTTONS */
+        .btn-act {
+            width:100%; padding:9px 12px; border-radius:5px; border:1px solid var(--border);
+            background:var(--surface2); color:var(--text); font-size:11px; font-weight:600;
+            cursor:pointer; margin-bottom:5px; transition:all 0.18s; text-align:left; font-family:var(--font);
+        }
+        .btn-act:hover { background:var(--surface3); border-color:var(--border2); transform:translateX(2px); }
+        .btn-ns { background:var(--nsd); border-color:rgba(220,30,60,0.38); color:var(--nsl); }
+        .btn-ns:hover { background:rgba(220,30,60,0.22); box-shadow:0 0 14px rgba(220,30,60,0.2); }
+
+        /* MINI CHART */
+        .mini-chart-wrap { height:72px; }
+        .mini-stat-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:10px; }
+        .mini-stat { text-align:center; background:var(--surface2); border-radius:5px; padding:7px 4px; }
+        .mini-stat-val { font-family:var(--mono); font-size:14px; font-weight:700; }
+        .mini-stat-lbl { font-size:8px; color:var(--muted); margin-top:3px; font-family:var(--mono); }
+
+        /* ═══ TOAST ═══ */
+        #alert-toast {
+            position:fixed; top:72px; right:20px; width:344px;
+            background:linear-gradient(135deg,#180409,#1e0a0c);
+            border:1px solid rgba(220,30,60,0.48); border-left:3px solid var(--ns);
+            color:var(--text); padding:16px; border-radius:9px; z-index:8000;
+            transform:translateX(380px);
+            transition:transform 0.48s cubic-bezier(0.175,0.885,0.32,1.275);
+            box-shadow:0 16px 48px rgba(0,0,0,0.65),0 0 32px rgba(220,30,60,0.12);
+        }
+        #alert-toast.show { transform:translateX(0); }
+        .toast-hd { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+        .toast-icon { font-size:18px; animation:tshake 0.45s ease-in-out 2; }
+        @keyframes tshake { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-12deg)} 75%{transform:rotate(12deg)} }
+        .toast-title { font-size:13px; font-weight:900; color:var(--nsl); letter-spacing:0.03em; }
+        .toast-badge { margin-left:auto; font-family:var(--mono); font-size:9px; background:var(--ns); color:#fff; padding:2px 7px; border-radius:3px; font-weight:700; letter-spacing:0.08em; }
+        .toast-body { font-size:11px; color:var(--text2); line-height:1.65; }
+        .toast-meta { display:flex; gap:14px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06); }
+        .toast-meta-item { font-family:var(--mono); font-size:9px; color:var(--muted); }
+        .toast-meta-item span { color:var(--warn); font-weight:700; }
+        #toast-close { position:absolute; top:10px; right:13px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; line-height:1; }
+        #toast-close:hover { color:var(--text); }
+
+        /* ═══ PERFORMANCE PAGE ═══ */
+        #pins { padding:16px; overflow-y:auto; flex:1; }
+        #pins::-webkit-scrollbar { width:4px; }
+        #pins::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+        .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+        .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; position:relative; overflow:hidden; }
+        .card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent); }
+
+        /* ═══ STATUS BAR ═══ */
+        .statusbar {
+            height:24px; flex-shrink:0; z-index:300;
+            background:var(--surface); border-top:1px solid var(--border);
+            display:flex; align-items:center; gap:20px; padding:0 16px;
+        }
+        .sb-item { display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9px; color:var(--muted); }
+        .sb-dot  { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+
+        /* EMPTY HUB LIST STATE */
+        .hub-empty { font-size:11px; color:var(--muted); text-align:center; padding:18px 0; font-family:var(--mono); }
+    </style>
+</head>
+<body>
+
+<!-- ══════ NAV ══════ -->
+<nav class="nav">
+    <div class="brand">
+        <div class="brand-logo">NS</div>
+        <div class="brand-text">
+            <div class="brand-name">SCM CONTROL TOWER</div>
+            <div class="brand-sub">INTEGRATED RISK MANAGEMENT PRO</div>
+        </div>
+    </div>
+    <div class="tabs">
+        <button class="tab on" onclick="sw('pmap',this)">🌐 Vessel Radar (실시간 지도)</button>
+        <button class="tab" onclick="sw('pins',this)">📊 Performance (통계 현황)</button>
+    </div>
+    <div class="nav-r">
+        <div class="sys-badge">SYS ONLINE</div>
+        <div class="clock-wrap">
+            <div class="clock-dot"></div>
+            <div class="clock-val" id="clk">--:--:--</div>
+        </div>
+    </div>
+</nav>
+
+<!-- ══════ FILTER BAR ══════ -->
+<div class="filters">
+    <div class="fl">SCENARIO</div>
+    <div class="fbtns" id="scenario-btns">
+        <button class="fb on" onclick="setScenario('normal',this)">평시 운영 (Normal)</button>
+        <button class="fb alert-btn" onclick="setScenario('alert',this)">🚨 수도권 폭설 (Alert)</button>
+    </div>
+    <div class="div-v"></div>
+    <div class="fl">VIEW MODE</div>
+    <div class="fbtns" id="view-btns">
+        <button class="fb on" data-co="all" onclick="setView('all',this)">All Hubs</button>
+        <button class="fb" data-co="CJ"   onclick="setView('CJ',this)">CJ대한통운</button>
+        <button class="fb" data-co="HJ"   onclick="setView('HJ',this)">한진택배</button>
+        <button class="fb" data-co="LD"   onclick="setView('LD',this)">롯데택배</button>
+    </div>
+    <div class="div-v"></div>
+    <div class="scenario-pill" id="scenario-pill"
+         style="color:var(--ok);background:rgba(0,229,138,0.08);border:1px solid rgba(0,229,138,0.2);">
+        ● NORMAL MODE
+    </div>
+</div>
+
+<!-- ══════ TOAST ══════ -->
+<div id="alert-toast">
+    <button id="toast-close" onclick="document.getElementById('alert-toast').classList.remove('show')">×</button>
+    <div class="toast-hd">
+        <div class="toast-icon">🚨</div>
+        <div class="toast-title">기상 이변 경보 발령</div>
+        <div class="toast-badge">ALERT</div>
+    </div>
+    <div class="toast-body">수도권 지역 폭설로 인한 간선 도로 정체 감지. 경기·서울 권역 물류 지연 가능성 <strong style="color:var(--err)">CRITICAL</strong> 수준.</div>
+    <div class="toast-meta">
+        <div class="toast-meta-item">추정 지연: <span>~4,200건</span></div>
+        <div class="toast-meta-item">영향 허브: <span>곤지암·동탄·군포</span></div>
+        <div class="toast-meta-item">대응 단계: <span>RED</span></div>
+    </div>
+</div>
+
+<!-- ══════ MAP PAGE ══════ -->
+<div class="page on" id="pmap">
+    <div class="map-container">
+
+        <!-- KPI Overlay -->
+        <div class="kpi-ov">
+            <div class="kc" style="border-top:2px solid var(--ns);">
+                <div class="kc-glow" style="background:radial-gradient(ellipse at top left,rgba(220,30,60,0.28),transparent 65%);"></div>
+                <div class="kl">금일 출고 총량</div>
+                <div class="kv" style="color:var(--nsl);">85,203 <small>건</small></div>
+            </div>
+            <div class="kc" style="border-top:2px solid var(--blue);">
+                <div class="kc-glow" style="background:radial-gradient(ellipse at top left,rgba(58,143,255,0.28),transparent 65%);"></div>
+                <div class="kl">현 물동량 (이동 중)</div>
+                <div class="kv" style="color:var(--bluel);" id="kpi-transit">42,105 <small>건</small></div>
+            </div>
+            <div class="kc" style="border-top:2px solid var(--ok);">
+                <div class="kc-glow" style="background:radial-gradient(ellipse at top left,rgba(0,229,138,0.28),transparent 65%);"></div>
+                <div class="kl">월 평균 익일배송율</div>
+                <div class="kv" style="color:var(--ok);" id="kpi-sla">98.2 <small>%</small></div>
+            </div>
+            <div class="kc" style="border-top:2px solid var(--warn);">
+                <div class="kc-glow" style="background:radial-gradient(ellipse at top left,rgba(255,176,32,0.28),transparent 65%);"></div>
+                <div class="kl">가동 허브 상태</div>
+                <div class="kv" style="color:var(--ok);" id="kpi-status">NORMAL</div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="map-area">
+            <div id="echarts-main"></div>
+            <div id="map-alert-overlay">
+                <div class="alert-banner"></div>
+                <div class="alert-corner">⚠ ALERT MODE ACTIVE</div>
+            </div>
+            <!-- Hub Detail Modal -->
+            <div id="hub-modal">
+                <div class="modal-hd">
+                    <div class="modal-hd-bar" id="modal-bar"></div>
+                    <button class="modal-close" onclick="closeHubModal()">×</button>
+                    <div class="modal-co" id="modal-co"></div>
+                    <div class="modal-name" id="modal-nm"></div>
+                </div>
+                <div class="modal-bd">
+                    <div class="modal-grid" id="modal-grid"></div>
+                    <div class="modal-status" id="modal-status"></div>
+                    <div class="modal-spark"><canvas id="modal-chart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sb">
+                <div class="sbt">즉각 대응 (Action)</div>
+                <div id="action-area">
+                    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.65;">현재 모든 허브가 정상 가동 중입니다.</div>
+                    <button class="btn-act">📄 일간 운영 리포트 발행</button>
+                    <button class="btn-act">📤 SCM 현황 공유</button>
+                </div>
+            </div>
+            <div class="sb">
+                <div class="sbt">허브별 가동률</div>
+                <div id="hub-list"></div>
+            </div>
+            <div class="sb" style="flex:1">
+                <div class="sbt">실시간 물류 부하도</div>
+                <div style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:8px;">LIVE LOAD INDEX · 최근 6시간</div>
+                <div class="mini-chart-wrap"><canvas id="sideChart"></canvas></div>
+                <div class="mini-stat-row">
+                    <div class="mini-stat"><div class="mini-stat-val" style="color:var(--nsl);" id="ms-cur">87</div><div class="mini-stat-lbl">현재</div></div>
+                    <div class="mini-stat"><div class="mini-stat-val" style="color:var(--warn);" id="ms-max">95</div><div class="mini-stat-lbl">최고</div></div>
+                    <div class="mini-stat"><div class="mini-stat-val" style="color:var(--ok);"   id="ms-min">61</div><div class="mini-stat-lbl">최저</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════ PERFORMANCE PAGE ══════ -->
+<div class="page" id="pins">
+    <div style="padding:16px;overflow-y:auto;flex:1;">
+        <div class="grid-2">
+            <div class="card">
+                <div class="sbt">월간 물동량 추이 (Target vs Actual)</div>
+                <div style="height:240px;margin-top:10px;"><canvas id="monthlyTrend"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="sbt">택배사별 점유율</div>
+                <div style="height:240px;margin-top:10px;"><canvas id="shareChart"></canvas></div>
+            </div>
+        </div>
+        <div class="card" style="margin-bottom:14px;">
+            <div class="sbt">권역별 리스크 탐지 데이터</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <th style="padding:10px 12px;text-align:left;color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;font-weight:600;">권역</th>
+                        <th style="padding:10px 12px;text-align:left;color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;font-weight:600;">상태</th>
+                        <th style="padding:10px 12px;text-align:left;color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;font-weight:600;">지연건수</th>
+                        <th style="padding:10px 12px;text-align:left;color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;font-weight:600;">대응팀</th>
+                    </tr>
+                </thead>
+                <tbody id="risk-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ══════ STATUS BAR ══════ -->
+<div class="statusbar">
+    <div class="sb-item"><div class="sb-dot" style="background:var(--ok);box-shadow:0 0 5px var(--ok);"></div>SYSTEM ONLINE</div>
+    <div class="sb-item"><div class="sb-dot" style="background:var(--blue);"></div>MAP: LIVE</div>
+    <div class="sb-item"><div class="sb-dot" style="background:var(--warn);"></div>API: ACTIVE</div>
+    <div style="margin-left:auto;" class="sb-item">NS홈쇼핑 SCM PRO v4.0 · 2025</div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════════
+const HUBS = [
+    { name:'CJ 곤지암', coord:[127.32,37.34], value:95, color:'#3a8fff', company:'CJ대한통운', co:'CJ', vol:'28,400건', cap:'98%', status:'정상 가동', statusType:'ok', region:'수도권', trend:[60,72,85,90,88,95] },
+    { name:'CJ 동탄',   coord:[127.07,37.20], value:88, color:'#3a8fff', company:'CJ대한통운', co:'CJ', vol:'19,800건', cap:'91%', status:'정상 가동', statusType:'ok', region:'수도권', trend:[55,68,78,82,85,88] },
+    { name:'한진 군포', coord:[126.93,37.36], value:91, color:'#ffb020', company:'한진택배',   co:'HJ', vol:'22,100건', cap:'94%', status:'정상 가동', statusType:'ok', region:'수도권', trend:[65,74,82,87,89,91] },
+    { name:'한진 대전', coord:[127.42,36.42], value:82, color:'#ffb020', company:'한진택배',   co:'HJ', vol:'15,200건', cap:'85%', status:'정상 가동', statusType:'ok', region:'충청권', trend:[50,60,70,75,80,82] },
+    { name:'롯데 진천', coord:[127.48,36.83], value:78, color:'#ff5555', company:'롯데택배',   co:'LD', vol:'12,100건', cap:'72%', status:'원활',      statusType:'ok', region:'충청권', trend:[45,55,65,70,72,78] },
+    { name:'롯데 대구', coord:[128.60,35.87], value:71, color:'#ff5555', company:'롯데택배',   co:'LD', vol:'9,400건',  cap:'68%', status:'원활',      statusType:'ok', region:'영남권', trend:[40,48,58,62,68,71] },
+];
+
+// Reproducible sub-node positions using simple LCG
+const SUBS = (()=>{
+    let seed = 42, arr = [];
+    function rng(){ seed=(seed*1664525+1013904223)&0xffffffff; return (seed>>>0)/0xffffffff; }
+    for(let i=0;i<66;i++) arr.push({ coord:[126.0+rng()*3.2, 34.0+rng()*4.2], targetHub:i%HUBS.length });
+    return arr;
+})();
+
+// ════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════
+let currentScenario = 'normal';   // 'normal' | 'alert'
+let currentView     = 'all';      // 'all' | 'CJ' | 'HJ' | 'LD'
+let mainChart = null, modalChart = null, sideChart = null;
+let sideData = [45,58,72,80,76,85,91,87,95,88,83,87];
+
+// ════════════════════════════════════════════════════
+// CLOCK
+// ════════════════════════════════════════════════════
+setInterval(()=>{ document.getElementById('clk').textContent = new Date().toLocaleTimeString('ko-KR'); }, 1000);
+
+// ════════════════════════════════════════════════════
+// PAGE SWITCH
+// ════════════════════════════════════════════════════
+function sw(id, btn) {
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+    document.getElementById(id).classList.add('on');
+    btn.classList.add('on');
+    if(id==='pins') setTimeout(initInsightCharts, 40);
+    if(id==='pmap') setTimeout(()=> mainChart && mainChart.resize(), 40);
+}
+
+// ════════════════════════════════════════════════════
+// VIEW MODE FILTER  ← 택배사 필터링 핵심 로직
+// ════════════════════════════════════════════════════
+function setView(co, btn) {
+    document.querySelectorAll('#view-btns .fb').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    currentView = co;
+    renderMap();       // 지도 업데이트
+    renderHubList();   // 사이드바 동기화
+    closeHubModal();   // 다른 허브 상세 닫기
+}
+
+// 현재 view 필터에 해당하는 허브만 반환
+function getVisibleHubs() {
+    if(currentView==='all') return HUBS;
+    return HUBS.filter(h=>h.co===currentView);
+}
+
+// ════════════════════════════════════════════════════
+// SCENARIO
+// ════════════════════════════════════════════════════
+function setScenario(mode, btn) {
+    document.querySelectorAll('#scenario-btns .fb').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    currentScenario = mode;
+
+    const isAlert = mode==='alert';
+    const pill    = document.getElementById('scenario-pill');
+    const overlay = document.getElementById('map-alert-overlay');
+
+    if(isAlert) {
+        setTimeout(()=>{
+            // Toast
+            const toast = document.getElementById('alert-toast');
+            toast.classList.add('show');
+            setTimeout(()=>toast.classList.remove('show'), 8000);
+
+            renderMap();
+            overlay.classList.add('show');
+
+            // KPI
+            document.getElementById('kpi-transit').innerHTML = '64,209 <small>건</small>';
+            setKpiColor('kpi-sla', '91.4 <small>%</small>', 'var(--err)');
+            setKpiColor('kpi-status', 'ALERT', 'var(--err)');
+
+            // Pill
+            pill.textContent = '● ALERT MODE';
+            pill.style.cssText = 'color:var(--err);background:rgba(255,48,48,0.1);border:1px solid rgba(255,48,48,0.3);';
+
+            // Actions
+            document.getElementById('action-area').innerHTML = `
+                <div style="font-size:11px;color:var(--err);margin-bottom:10px;font-weight:700;line-height:1.65;">
+                    🚨 수도권 폭설 대응 모드 가동<br>
+                    <span style="color:var(--text2);font-weight:400;">수도권 3개 허브 영향 감지</span>
+                </div>
+                <button class="btn-act btn-ns">📧 배송 지연 안내 LMS 발송</button>
+                <button class="btn-act btn-ns">🚛 우회 노선(충청권) 즉시 투입</button>
+                <button class="btn-act btn-ns">📞 SCM 담당자 긴급 알림</button>
+            `;
+        }, 1000);
+    } else {
+        renderMap();
+        overlay.classList.remove('show');
+
+        document.getElementById('kpi-transit').innerHTML = '42,105 <small>건</small>';
+        setKpiColor('kpi-sla', '98.2 <small>%</small>', 'var(--ok)');
+        setKpiColor('kpi-status', 'NORMAL', 'var(--ok)');
+
+        pill.textContent = '● NORMAL MODE';
+        pill.style.cssText = 'color:var(--ok);background:rgba(0,229,138,0.08);border:1px solid rgba(0,229,138,0.2);';
+
+        document.getElementById('action-area').innerHTML = `
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.65;">현재 모든 허브가 정상 가동 중입니다.</div>
+            <button class="btn-act">📄 일간 운영 리포트 발행</button>
+            <button class="btn-act">📤 SCM 현황 공유</button>
+        `;
+    }
+}
+
+function setKpiColor(id, html, color) {
+    const el = document.getElementById(id);
+    el.innerHTML = html;
+    el.style.color = color;
+}
+
+// ════════════════════════════════════════════════════
+// ECHARTS INIT
+// ════════════════════════════════════════════════════
+async function initECharts() {
+    mainChart = echarts.init(document.getElementById('echarts-main'));
+    try {
+        const res = await fetch('https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_provinces_geo.json');
+        const geo = await res.json();
+        echarts.registerMap('korea', geo);
+    } catch(e) { /* geo polygon optional */ }
+
+    renderMap();
+
+    mainChart.on('click', params=>{
+        if(params.seriesType==='scatter' && params.seriesIndex===3) {
+            const hub = HUBS.find(h=>h.name===params.name);
+            if(hub) showHubModal(hub);
+        }
+    });
+
+    window.addEventListener('resize', ()=> mainChart && mainChart.resize());
+}
+
+// ════════════════════════════════════════════════════
+// RENDER MAP  (respects both currentScenario & currentView)
+// ════════════════════════════════════════════════════
+function renderMap() {
+    if(!mainChart) return;
+
+    const isAlert    = currentScenario === 'alert';
+    const visHubs    = getVisibleHubs();
+    const visHubSet  = new Set(visHubs.map(h=>HUBS.indexOf(h)));
+
+    // ── Lines: only for visible hubs ──
+    const visibleSubs = SUBS.filter(s=>visHubSet.has(s.targetHub));
+    const linesData = visibleSubs.map(s=>{
+        const hub = HUBS[s.targetHub];
+        const isCapital = hub.region==='수도권';
+        return {
+            coords: [hub.coord, s.coord],
+            lineStyle: {
+                // Alert: ALL lines ≤ 0.08 → congestion / dimmed feel
+                color:   isAlert ? (isCapital ? '#ff2040' : '#223344') : hub.color,
+                width:   isAlert ? (isCapital ? 1 : 0.8) : 1,
+                curveness: 0.22,
+                opacity: isAlert ? 0.07 : 0.28
+            }
+        };
+    });
+
+    // ── Scatter: visible hubs only ──
+    const scatterData = visHubs.map(h=>({
+        name: h.name,
+        value: [...h.coord, h.value],
+        itemStyle: {
+            color:       isAlert && h.region==='수도권' ? '#ff2a40' : h.color,
+            shadowBlur:  isAlert && h.region==='수도권' ? 28 : 16,
+            shadowColor: isAlert && h.region==='수도권' ? 'rgba(255,30,50,0.9)' : h.color+'bb'
+        }
+    }));
+
+    // ── Heatmap: alert red zone ──
+    const heatmapData = isAlert ? [
+        [126.93,37.56,100],[127.05,37.48,95],[127.32,37.34,90],
+        [127.07,37.20,88],[126.80,37.30,75],[127.20,37.60,80],
+        [126.70,37.45,60],[126.93,37.36,85],[127.00,37.54,92]
+    ] : [];
+
+    // ── Snow-cloud scatter: white-glow circles over Seoul/Gyeonggi (alert only) ──
+    const snowClouds = isAlert ? [
+        { name:'sc0', value:[126.95,37.58,90], itemStyle:{ color:'rgba(215,230,255,0.12)', shadowBlur:65, shadowColor:'rgba(200,220,255,0.60)' } },
+        { name:'sc1', value:[127.10,37.48,75], itemStyle:{ color:'rgba(215,230,255,0.09)', shadowBlur:72, shadowColor:'rgba(200,220,255,0.50)' } },
+        { name:'sc2', value:[127.30,37.55,65], itemStyle:{ color:'rgba(215,230,255,0.09)', shadowBlur:58, shadowColor:'rgba(200,220,255,0.45)' } },
+        { name:'sc3', value:[126.75,37.40,68], itemStyle:{ color:'rgba(215,230,255,0.08)', shadowBlur:66, shadowColor:'rgba(200,220,255,0.42)' } },
+        { name:'sc4', value:[127.05,37.34,55], itemStyle:{ color:'rgba(215,230,255,0.08)', shadowBlur:52, shadowColor:'rgba(200,220,255,0.38)' } },
+        { name:'sc5', value:[127.18,37.62,80], itemStyle:{ color:'rgba(215,230,255,0.10)', shadowBlur:60, shadowColor:'rgba(200,220,255,0.48)' } },
+    ] : [];
+
+    const option = {
+        backgroundColor: 'transparent',
+        visualMap: {
+            show:false, type:'continuous', min:0, max:100,
+            inRange:{ color: isAlert
+                ? ['rgba(220,30,60,0)','rgba(220,30,60,0.12)','rgba(255,20,30,0.52)']
+                : ['rgba(0,0,0,0)','rgba(0,0,0,0)'] }
+        },
+        geo: {
+            map:'korea', roam:true, zoom:1.25, center:[127.5,36.5],
+            itemStyle:{ areaColor:'#04090f', borderColor:'#162030', borderWidth:1 },
+            emphasis:{ itemStyle:{ areaColor:'#0a1828' }, label:{ show:false } }
+        },
+        series: [
+            // 0: Lines (animated flow)
+            {
+                type:'lines', coordinateSystem:'geo', zlevel:1,
+                data: linesData,
+                effect:{
+                    show:true,
+                    period:    isAlert ? 7 : 4,
+                    trailLength: isAlert ? 0.15 : 0.45,
+                    symbolSize:  isAlert ? 1.5 : 2.5,
+                    color: isAlert ? 'rgba(255,50,60,0.55)' : 'rgba(255,255,255,0.72)'
+                },
+                lineStyle:{ opacity:0 }
+            },
+            // 1: Danger heatmap (alert only)
+            { type:'heatmap', coordinateSystem:'geo', zlevel:2, data:heatmapData, pointSize:58, blurSize:52, maxOpacity:0.72 },
+            // 2: Snow-cloud scatter (alert only, non-interactive)
+            { type:'scatter', coordinateSystem:'geo', zlevel:3, data:snowClouds, symbolSize:d=>Math.max(55,d[2]), silent:true, label:{show:false} },
+            // 3: Hub scatter (interactive)
+            {
+                type:'scatter', coordinateSystem:'geo', zlevel:4,
+                data: scatterData, symbolSize:15,
+                label:{
+                    show:true, formatter:'{b}', position:'right',
+                    color:'#dde0f0', fontSize:10, fontWeight:'bold', fontFamily:'Noto Sans KR',
+                    backgroundColor:'rgba(5,5,9,0.78)', padding:[3,6], borderRadius:3,
+                    borderColor:'rgba(255,255,255,0.08)', borderWidth:1
+                }
+            }
+        ]
+    };
+
+    mainChart.setOption(option, { notMerge:true });
+}
+
+// ════════════════════════════════════════════════════
+// SIDEBAR HUB LIST (동기화)
+// ════════════════════════════════════════════════════
+function renderHubList() {
+    const hubs = getVisibleHubs();
+    const container = document.getElementById('hub-list');
+
+    if(hubs.length===0) {
+        container.innerHTML = '<div class="hub-empty">필터에 해당하는 허브 없음</div>';
+        return;
+    }
+
+    container.innerHTML = hubs.map(h=>{
+        const idx = HUBS.indexOf(h);
+        const valColor = h.value>=90 ? 'var(--warn)' : 'var(--ok)';
+        const barBg    = `linear-gradient(90deg,${h.color}55,${h.color})`;
+        return `
+        <div class="hub-item" data-name="${h.name}" onclick="handleHubClick(${idx})">
+            <div class="hub-item-top">
+                <div class="hub-item-name" style="color:${h.color};">${h.name}</div>
+                <div class="hub-item-val" style="color:${valColor};">${h.value}%</div>
+            </div>
+            <div class="hub-meta">${h.company} · ${h.region}</div>
+            <div class="hub-bar-track">
+                <div class="hub-bar-fill" style="width:${h.value}%;background:${barBg};"></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ════════════════════════════════════════════════════
+// HUB CLICK  (list or map)
+// ════════════════════════════════════════════════════
+function handleHubClick(idx) {
+    const hub = HUBS[idx];
+    showHubModal(hub);
+    // Focus map on hub
+    if(mainChart) {
+        try { mainChart.dispatchAction({ type:'geoRoam', zoom:2.2, center:hub.coord }); }
+        catch(e){}
+    }
+}
+
+// ════════════════════════════════════════════════════
+// HUB MODAL
+// ════════════════════════════════════════════════════
+function showHubModal(hub) {
+    // Sidebar active highlight
+    document.querySelectorAll('.hub-item').forEach(el=>el.classList.remove('active'));
+    const li = document.querySelector(`.hub-item[data-name="${hub.name}"]`);
+    if(li) li.classList.add('active');
+
+    // Color bar
+    document.getElementById('modal-bar').style.background = hub.color;
+
+    // Header
+    const co = document.getElementById('modal-co');
+    co.style.color   = hub.color;
+    co.textContent   = hub.company + ' · ' + hub.region;
+    document.getElementById('modal-nm').textContent = hub.name;
+
+    // Metrics grid
+    const valColor = hub.value>=90 ? 'var(--warn)' : 'var(--ok)';
+    document.getElementById('modal-grid').innerHTML = `
+        <div class="modal-metric">
+            <div class="modal-metric-label">현재 물량</div>
+            <div class="modal-metric-val" style="color:${hub.color};">${hub.vol}</div>
+        </div>
+        <div class="modal-metric">
+            <div class="modal-metric-label">운영 효율</div>
+            <div class="modal-metric-val">${hub.cap}</div>
+        </div>
+        <div class="modal-metric">
+            <div class="modal-metric-label">가동률</div>
+            <div class="modal-metric-val" style="color:${valColor};">${hub.value}%</div>
+        </div>
+        <div class="modal-metric">
+            <div class="modal-metric-label">권역</div>
+            <div class="modal-metric-val" style="font-size:13px;">${hub.region}</div>
+        </div>
+    `;
+
+    // Status row
+    const dotCls = hub.statusType==='ok' ? 'ok' : hub.statusType==='warn' ? 'warn' : 'err';
+    document.getElementById('modal-status').innerHTML = `
+        <div class="st-dot ${dotCls}"></div>
+        <div style="font-size:11px;font-weight:600;">실시간 상태: ${hub.status}</div>
+    `;
+
+    // Show modal first so canvas has dimensions
+    document.getElementById('hub-modal').style.display = 'block';
+
+    // Sparkline
+    const ctx = document.getElementById('modal-chart');
+    if(modalChart){ modalChart.destroy(); modalChart=null; }
+    modalChart = new Chart(ctx, {
+        type:'line',
+        data:{
+            labels:['09시','11시','13시','15시','17시','현재'],
+            datasets:[{
+                data: hub.trend,
+                borderColor: hub.color,
+                borderWidth: 1.5,
+                tension: 0.42,
+                fill: true,
+                backgroundColor: hub.color+'1a',
+                pointRadius: 2,
+                pointBackgroundColor: hub.color
+            }]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            animation:{ duration:360 },
+            plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+            scales:{ x:{display:false}, y:{display:false} }
+        }
+    });
+}
+
+function closeHubModal() {
+    document.getElementById('hub-modal').style.display = 'none';
+    document.querySelectorAll('.hub-item').forEach(el=>el.classList.remove('active'));
+    if(modalChart){ modalChart.destroy(); modalChart=null; }
+}
+
+// ════════════════════════════════════════════════════
+// SIDEBAR MINI CHART  (live)
+// ════════════════════════════════════════════════════
+function initSideChart() {
+    const ctx = document.getElementById('sideChart');
+    if(!ctx) return;
+
+    const labels = ['09','10','11','12','13','14','15','16','17','18','19','지금'];
+
+    sideChart = new Chart(ctx, {
+        type:'line',
+        data:{
+            labels,
+            datasets:[{
+                data:[...sideData],
+                borderColor:'#3a8fff', borderWidth:1.5, tension:0.42, fill:true,
+                backgroundColor:'rgba(58,143,255,0.07)', pointRadius:0, pointHoverRadius:3
+            }]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            interaction:{ intersect:false, mode:'index' },
+            plugins:{
+                legend:{display:false},
+                tooltip:{
+                    backgroundColor:'rgba(5,5,9,0.92)',
+                    borderColor:'rgba(58,143,255,0.35)', borderWidth:1,
+                    titleColor:'#5a6278', bodyColor:'#dde0f0',
+                    titleFont:{family:'JetBrains Mono',size:9},
+                    bodyFont:{family:'JetBrains Mono',size:11,weight:'bold'},
+                    displayColors:false,
+                    callbacks:{ label:c=>c.parsed.y+'%' }
+                }
+            },
+            scales:{
+                x:{ ticks:{color:'#3a4055',font:{family:'JetBrains Mono',size:8},maxTicksLimit:6}, grid:{display:false}, border:{display:false} },
+                y:{ display:false, min:0, max:110 }
+            }
+        }
+    });
+
+    // Live simulation
+    setInterval(()=>{
+        const last = sideData[sideData.length-1];
+        const next = Math.max(38, Math.min(100, last+(Math.random()-0.47)*9));
+        sideData.push(Math.round(next));
+        sideData.shift();
+        sideChart.data.datasets[0].data = [...sideData];
+        sideChart.update('none');
+        document.getElementById('ms-cur').textContent = sideData[sideData.length-1];
+        document.getElementById('ms-max').textContent = Math.max(...sideData);
+        document.getElementById('ms-min').textContent = Math.min(...sideData);
+    }, 3000);
+}
+
+// ════════════════════════════════════════════════════
+// INSIGHT CHARTS
+// ════════════════════════════════════════════════════
+let insightInited = false;
+function initInsightCharts() {
+    if(insightInited) return;
+    insightInited = true;
+
+    new Chart(document.getElementById('monthlyTrend'), {
+        type:'line',
+        data:{
+            labels:['1월','2월','3월','4월','5월','6월'],
+            datasets:[
+                { label:'실적', data:[120,135,128,142,158,165], borderColor:'#ff3355', backgroundColor:'rgba(255,51,85,0.09)', tension:0.4, fill:true, pointBackgroundColor:'#ff3355', pointRadius:4 },
+                { label:'목표', data:[115,130,130,140,150,160], borderColor:'#4a5570', borderDash:[4,4], tension:0.3, pointRadius:0 }
+            ]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ labels:{ color:'#a0a8c0', font:{family:'JetBrains Mono',size:10} } } },
+            scales:{
+                y:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#5a6278',font:{family:'JetBrains Mono',size:10}} },
+                x:{ grid:{display:false}, ticks:{color:'#5a6278',font:{family:'JetBrains Mono',size:10}} }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('shareChart'), {
+        type:'doughnut',
+        data:{
+            labels:['CJ대한통운','한진택배','롯데택배','기타'],
+            datasets:[{ data:[45,25,20,10], backgroundColor:['#3a8fff','#ffb020','#ff5555','#252535'], borderWidth:0, hoverOffset:8 }]
+        },
+        options:{
+            responsive:true, maintainAspectRatio:false, cutout:'68%',
+            plugins:{ legend:{ position:'right', labels:{color:'#a0a8c0',font:{family:'JetBrains Mono',size:10},padding:16} } }
+        }
+    });
+
+    const risks = [
+        { reg:'수도권', st:'HIGH',    val:'4,200건', team:'SCM 1팀', c:'var(--err)' },
+        { reg:'충청권', st:'NORMAL',  val:'120건',   team:'SCM 2팀', c:'var(--ok)' },
+        { reg:'호남권', st:'NORMAL',  val:'45건',    team:'SCM 2팀', c:'var(--ok)' },
+        { reg:'강원권', st:'CAUTION', val:'850건',   team:'SCM 1팀', c:'var(--warn)' }
+    ];
+    document.getElementById('risk-table-body').innerHTML = risks.map(r=>`
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.03);transition:background .2s;"
+            onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+            onmouseout="this.style.background='transparent'">
+            <td style="padding:12px;font-weight:700;">${r.reg}</td>
+            <td style="padding:12px;">
+                <span style="color:${r.c};font-family:var(--mono);font-size:9px;font-weight:800;background:${r.c}22;padding:3px 7px;border-radius:3px;letter-spacing:.08em;">${r.st}</span>
+            </td>
+            <td style="padding:12px;font-family:var(--mono);font-size:12px;">${r.val}</td>
+            <td style="padding:12px;color:var(--muted);font-size:11px;">${r.team}</td>
+        </tr>
+    `).join('');
+}
+
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+window.addEventListener('load', ()=>{
+    initECharts();
+    renderHubList();
+    initSideChart();
+});
+</script>
+</body>
+</html>
